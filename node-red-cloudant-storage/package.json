@@ -1,0 +1,14 @@
+{
+  "name": "node-red-contrib-cloudant-storage",
+  "version": "0.1.0",
+  "description": "A Node-RED storage plugin to persist flows, credentials, and settings in IBM Cloudant.",
+  "main": "cloudant-storage.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "nano": "^10.0.0"
+  },
+  "license": "Apache-2.0",
+  "keywords": [ "node-red", "storage", "cloudant" ]
+}

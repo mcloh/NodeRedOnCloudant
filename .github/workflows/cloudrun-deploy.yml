@@ -1,0 +1,54 @@
+name: Deploy Node-RED to Cloud Run
+
+on:
+  push:
+    branches:
+      - main  # Or your default branch
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+
+    - name: Google Auth
+      id: auth
+      uses: 'google-github-actions/auth@v1'
+      with:
+        workload_identity_provider: 'projects/${{ secrets.GCP_PROJECT_NUMBER }}/locations/global/workloadIdentityPools/${{ secrets.GCP_WORKLOAD_IDENTITY_POOL }}/providers/${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}'
+        service_account: '${{ secrets.GCP_SERVICE_ACCOUNT }}'
+
+    - name: Set up Cloud SDK
+      uses: google-github-actions/setup-gcloud@v1
+
+    - name: Configure Docker
+      run: gcloud auth configure-docker --quiet
+
+    - name: Build and Push Docker image
+      env:
+        IMAGE_NAME: gcr.io/${{ secrets.GCP_PROJECT_ID }}/${{ secrets.CLOUD_RUN_SERVICE_NAME }}:${{ github.sha }}
+      run: |
+        docker build -t $IMAGE_NAME .
+        docker push $IMAGE_NAME
+
+    - name: Deploy to Cloud Run
+      id: deploy
+      uses: google-github-actions/deploy-cloudrun@v1
+      with:
+        service: ${{ secrets.CLOUD_RUN_SERVICE_NAME }}
+        region: ${{ secrets.CLOUD_RUN_REGION }}
+        image: gcr.io/${{ secrets.GCP_PROJECT_ID }}/${{ secrets.CLOUD_RUN_SERVICE_NAME }}:${{ github.sha }}
+        env_vars: |
+          CLOUDANT_CREDENTIALS=${{ secrets.CLOUDANT_CREDENTIALS_JSON }}
+          PORT=8080 # Cloud Run expects services to listen on port 8080 by default
+      env:
+        CLOUDANT_CREDENTIALS: ${{ secrets.CLOUDANT_CREDENTIALS_JSON }}
+
+    - name: Show Deployed URL
+      run: echo "Deployed to ${{ steps.deploy.outputs.url }}"
+
