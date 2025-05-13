@@ -1,0 +1,52 @@
+# Node-RED specific
+.node-red-config*
+*.backup
+
+# General
+.DS_Store
+Thumbs.db
+
+# Node.js / npm
+node_modules/
+.npm/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json # if package.json is used and managed by the project, otherwise keep if it's a library
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# IDE / Editor specific
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS generated files
+.Spotlight-V100/
+.Trashes/
+
+# Sandbox specific (Manus)
+screenshots/
+upload/
+.local/
+.cache/
+.config/
+.pki/
+.nvm/
+.profile
+.zshrc
+.secrets/
+sandbox.txt
+Pipfile
+Pipfile.lock
+# todo.md # Decided to keep this out of repo unless specifically part of project deliverable
+
