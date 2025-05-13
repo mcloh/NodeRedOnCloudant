@@ -2,6 +2,8 @@
 
 Este projeto configura uma instância do Node-RED para utilizar um módulo de persistência customizado que armazena fluxos (flows), credenciais (credentials) e configurações (settings) numa base de dados IBM Cloudant. A aplicação é desenhada para ser implementada no GCP Cloud Run através de um pipeline de CI/CD com GitHub Actions.
 
+Adicionalmente, o editor do Node-RED é protegido por autenticação, configurada dinamicamente a partir de um vetor de utilizadores fornecido no mesmo JSON de credenciais do Cloudant.
+
 ## Estrutura do Repositório
 
 - **`.github/workflows/cloudrun-deploy.yml`**: Define o workflow do GitHub Actions para construir a imagem Docker e implementar a aplicação no GCP Cloud Run.
@@ -9,7 +11,7 @@ Este projeto configura uma instância do Node-RED para utilizar um módulo de pe
   - `cloudant-storage.js`: A lógica principal do plugin de armazenamento para interagir com o IBM Cloudant.
   - `package.json`: Define as dependências do módulo de armazenamento (principalmente o cliente `nano` para Cloudant).
 - **`Dockerfile`**: Instruções para construir a imagem Docker do Node-RED, incluindo a instalação do módulo de persistência customizado e a cópia do ficheiro de configuração.
-- **`settings.js`**: Ficheiro de configuração do Node-RED, modificado para utilizar o `node-red-contrib-cloudant-storage` como `storageModule`.
+- **`settings.js`**: Ficheiro de configuração do Node-RED, modificado para utilizar o `node-red-contrib-cloudant-storage` como `storageModule` e para configurar a autenticação do editor (`adminAuth`) dinamicamente.
 - **`README.md`**: Este ficheiro, com a descrição do projeto e instruções.
 
 ## Configuração e Implementação
@@ -28,14 +30,18 @@ Para implementar esta aplicação, siga os passos abaixo:
     *   `GCP_WORKLOAD_IDENTITY_PROVIDER`: O ID do seu Workload Identity Provider no GCP.
     *   `CLOUD_RUN_SERVICE_NAME`: O nome que deseja dar ao seu serviço no Cloud Run (ex: `node-red-cloudant`).
     *   `CLOUD_RUN_REGION`: A região do GCP onde o serviço Cloud Run será implementado (ex: `us-central1`).
-    *   `CLOUDANT_CREDENTIALS_JSON`: As credenciais de acesso ao seu IBM Cloudant, em formato JSON string. Este JSON deve conter os campos `url` (com utilizador e password embebidos ou usando IAM apikey) e `app_db` (o nome da base de dados a ser utilizada/criada). Exemplo (substitua com os seus dados reais):
+    *   `CLOUDANT_CREDENTIALS_JSON`: As credenciais de acesso ao seu IBM Cloudant e a configuração dos utilizadores do Node-RED, em formato JSON string. Este JSON deve conter os campos `url` (com utilizador e password embebidos ou usando IAM apikey), `app_db` (o nome da base de dados a ser utilizada/criada), e `nodered_users` (um array de objetos de utilizador). Exemplo (substitua com os seus dados reais):
         ```json
-        {\"apikey\": \"SUA_APIKEY\", \"host\": \"SEU_HOST.cloudantnosqldb.appdomain.cloud\", \"iam_apikey_description\": \"desc\", \"iam_apikey_name\": \"nome\", \"iam_role_crn\": \"crn_role\", \"iam_serviceid_crn\": \"crn_serviceid\", \"password\": \"SUA_PASSWORD_SE_APLICAVEL\", \"port\": 443, \"url\": \"https://SUA_APIKEY:SUA_PASSWORD_OU_APIKEY_V2@SEU_HOST.cloudantnosqldb.appdomain.cloud\", \"username\": \"SEU_USERNAME_OU_APIKEY_V2\", \"app_db\": \"nomeDaSuaBaseNodeRed\"}
+        {\"apikey\": \"SUA_APIKEY\", \"host\": \"SEU_HOST.cloudantnosqldb.appdomain.cloud\", ..., \"url\": \"https://SUA_APIKEY:SUA_PASSWORD_OU_APIKEY_V2@SEU_HOST.cloudantnosqldb.appdomain.cloud\", \"username\": \"SEU_USERNAME_OU_APIKEY_V2\", \"app_db\": \"nomeDaSuaBaseNodeRed\", \"nodered_users\":[{\"role\":\"admin\",\"username\":\"admin\",\"password\":\"$2a$08$tcrS3GpuSXO3w0OBCg3dZ.TRkH3.cUbT/j2g59A22fXnmM6tLaZZe\"},{\"role\":\"user\",\"username\":\"editor\",\"password\":\"$2a$08$abcdefghijklmnopqrstuv.wxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234\", \"permissions\":\"read\"}]}
         ```
-        **Importante**: Certifique-se de que o JSON está corretamente "escapado" se o estiver a colar diretamente na interface de segredos do GitHub, ou forneça-o como uma string JSON válida.
+        **Importante sobre `nodered_users`**:
+        *   Cada objeto de utilizador deve conter `username`, `password` (obrigatoriamente uma hash bcrypt), e `role`.
+        *   O campo `role` é usado para determinar as `permissions`. Atualmente, `role: "admin"` concede permissões totais (`"*"`). Outros `role`s concedem permissões de leitura (`"read"`) por defeito. Pode expandir esta lógica no `settings.js` se necessitar de mais granularidade.
+        *   **Gerar Hashes Bcrypt:** Pode gerar hashes bcrypt para as suas passwords utilizando a ferramenta de linha de comando do Node-RED: `node-red-admin hash-pw`. Copie a hash resultante para o campo `password`.
+        *   Certifique-se de que o JSON completo está corretamente "escapado" se o estiver a colar diretamente na interface de segredos do GitHub, ou forneça-o como uma string JSON válida.
 
 3.  **Variável de Ambiente `CLOUDANT_CREDENTIALS`:**
-    O módulo `cloudant-storage.js` espera que as credenciais do Cloudant sejam fornecidas através de uma variável de ambiente chamada `CLOUDANT_CREDENTIALS`. O workflow do GitHub Actions (`cloudrun-deploy.yml`) já está configurado para passar o segredo `CLOUDANT_CREDENTIALS_JSON` do GitHub para esta variável de ambiente no serviço Cloud Run.
+    O módulo `cloudant-storage.js` e o `settings.js` (para `adminAuth`) esperam que as credenciais do Cloudant e a configuração dos utilizadores sejam fornecidas através de uma variável de ambiente chamada `CLOUDANT_CREDENTIALS`. O workflow do GitHub Actions (`cloudrun-deploy.yml`) já está configurado para passar o segredo `CLOUDANT_CREDENTIALS_JSON` do GitHub para esta variável de ambiente no serviço Cloud Run.
 
 4.  **Commit e Push:**
     Faça commit de quaisquer alterações e faça push para o branch `main` (ou o seu branch default). Isto irá acionar o workflow do GitHub Actions.
@@ -44,7 +50,7 @@ Para implementar esta aplicação, siga os passos abaixo:
     Vá à aba `Actions` no seu repositório GitHub para monitorizar o progresso do build e da implementação.
 
 6.  **Aceda à sua Instância Node-RED:**
-    Após a implementação bem-sucedida, o workflow irá mostrar o URL da sua aplicação Node-RED no Cloud Run. Os fluxos, credenciais e configurações serão persistidos na base de dados Cloudant especificada.
+    Após a implementação bem-sucedida, o workflow irá mostrar o URL da sua aplicação Node-RED no Cloud Run. Será solicitado o login com um dos utilizadores configurados. Os fluxos, credenciais e configurações serão persistidos na base de dados Cloudant especificada.
 
 ## Como Funciona o Módulo de Persistência
 
@@ -55,5 +61,14 @@ O módulo `node-red-contrib-cloudant-storage` implementa a Storage API do Node-R
 -   **`getCredentials()` / `saveCredentials(credentials)`**: Lê/grava as credenciais encriptadas do Node-RED de/para um documento chamado `nodered_credentials`.
 -   **`getSettings()` / `saveSettings(settings)`**: Lê/grava as configurações do runtime do Node-RED de/para um documento chamado `nodered_settings`.
 
-O ficheiro `settings.js` na raiz do projeto instrui o Node-RED a utilizar este módulo de armazenamento.
+## Autenticação do Editor
+
+O ficheiro `settings.js` na raiz do projeto instrui o Node-RED a utilizar o módulo de armazenamento e também configura a secção `adminAuth` dinamicamente:
+
+-   Lê a variável de ambiente `CLOUDANT_CREDENTIALS`.
+-   Se o JSON contiver um array `nodered_users` válido, configura a autenticação do editor do Node-RED.
+-   Mapeia o campo `role` para `permissions` (ex: `admin` -> `*`, outros -> `read`).
+-   As passwords **devem** ser hashes bcrypt.
+
+Se `nodered_users` não for fornecido ou estiver malformado, a autenticação do editor não será ativada (comportamento por defeito do Node-RED, a menos que outra configuração de `adminAuth` seja definida manualmente no `settings.js`).
 
