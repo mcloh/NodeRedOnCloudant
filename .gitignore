@@ -53,3 +53,8 @@ Pipfile.lock
 
 .browser_data_dir/
 
+
+.bash_logout
+.bashrc
+.gitconfig
+
