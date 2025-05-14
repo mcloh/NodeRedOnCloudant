@@ -50,3 +50,6 @@ Pipfile
 Pipfile.lock
 # todo.md # Decided to keep this out of repo unless specifically part of project deliverable
 
+
+.browser_data_dir/
+
