@@ -25,17 +25,20 @@ A variável `CLOUDANT_CREDENTIALS` deve conter uma string JSON com a seguinte es
 
 ```json
 {
-  "url": "SUA_URL_CLOUDANT_COM_AUTENTICACAO",
-  "app_db": "NOME_DA_BASE_DE_DADOS",
+  "url": "https://seu-host-cloudant.com",
+  "username": "seu_username_cloudant_db",
+  "password": "sua_senha_cloudant_db",
+  "port": 443,
+  "app_db": "nome_da_sua_base_nodered",
   "nodered_users": [
     {
-      "username": "admin_user",
-      "password": "SUA_SENHA_ADMIN_EM_HASH_BCRYPT",
+      "username": "admin_nodered",
+      "password": "SUA_SENHA_ADMIN_NODERED_EM_HASH_BCRYPT",
       "role": "admin"
     },
     {
-      "username": "read_only_user",
-      "password": "SUA_SENHA_USER_EM_HASH_BCRYPT",
+      "username": "editor_nodered",
+      "password": "SUA_SENHA_EDITOR_NODERED_EM_HASH_BCRYPT",
       "role": "user"
     }
   ]
@@ -44,14 +47,18 @@ A variável `CLOUDANT_CREDENTIALS` deve conter uma string JSON com a seguinte es
 
 **Detalhes dos campos:**
 
-*   **`url` (obrigatório):** A URL completa de conexão ao seu IBM Cloudant, incluindo as credenciais de acesso (API key e password, ou username e password).
-    *   Formato esperado: `https://SUA_APIKEY_OU_USERNAME:SUA_PASSWORD@SEU_HOST.cloudantnosqldb.appdomain.cloud`
+*   **`url` (obrigatório):** A URL base para o seu serviço IBM Cloudant.
+    *   Exemplo: `https://seu-usuario-api-key.cloudantnosqldb.appdomain.cloud` ou `https://seu-host-cloudant.com`.
+    *   Se `username` e `password` (descritos abaixo) forem fornecidos, eles serão usados para autenticação, e quaisquer credenciais na string `url` podem ser ignoradas ou omitidas para a conexão com o banco de dados.
+*   **`username` (opcional):** O nome de utilizador para autenticação na base de dados Cloudant. Se fornecido junto com `password`, estas credenciais serão usadas para a conexão.
+*   **`password` (opcional):** A senha para autenticação na base de dados Cloudant. Deve ser fornecida se `username` for especificado para a conexão ao DB.
+*   **`port` (opcional):** A porta específica para a conexão com a base de dados Cloudant. Se não fornecida, a porta padrão para o protocolo na `url` (HTTP ou HTTPS) será utilizada.
 *   **`app_db` (obrigatório):** O nome da base de dados no Cloudant que será utilizada para armazenar os dados do Node-RED (fluxos, credenciais, configurações). Se a base não existir, o módulo de persistência tentará criá-la.
-*   **`nodered_users` (opcional):** Um array de objetos, cada um representando um utilizador para autenticação no editor do Node-RED.
-    *   **`username` (obrigatório):** O nome de utilizador.
-    *   **`password` (obrigatório):** A senha do utilizador, **obrigatoriamente pré-codificada (hashed) utilizando bcrypt**.
+*   **`nodered_users` (opcional):** Um array de objetos, cada um representando um utilizador para autenticação no editor do Node-RED (distinto das credenciais de acesso ao Cloudant DB).
+    *   **`username` (obrigatório):** O nome de utilizador para login no Node-RED.
+    *   **`password` (obrigatório):** A senha do utilizador para login no Node-RED, **obrigatoriamente pré-codificada (hashed) utilizando bcrypt**.
         *   **Importante:** Nunca coloque senhas em texto plano aqui. Utilize a ferramenta de linha de comando do Node-RED para gerar a hash: `node-red-admin hash-pw`. Copie a hash resultante para este campo.
-    *   **`role` (obrigatório):** Define o papel do utilizador. Este campo é utilizado internamente no `settings.js` para atribuir permissões no Node-RED.
+    *   **`role` (obrigatório):** Define o papel do utilizador no Node-RED. Este campo é utilizado internamente no `settings.js` para atribuir permissões.
         *   `"admin"`: Concede permissões totais (acesso de leitura e escrita - `"*"`).
         *   Qualquer outro valor (ex: `"user"`, `"editor"`): Concede permissões de leitura (`"read"`) por defeito. Esta lógica pode ser expandida no ficheiro `settings.js` se necessitar de maior granularidade de permissões.
 
@@ -107,5 +114,4 @@ O ficheiro `settings.js` na raiz do projeto instrui o Node-RED a utilizar o mód
 -   As passwords **devem** ser hashes bcrypt.
 
 Se `nodered_users` não for fornecido ou estiver malformado, a autenticação do editor não será ativada.
-
 [end of README.md]
