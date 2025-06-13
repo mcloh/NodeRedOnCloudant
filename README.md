@@ -10,8 +10,54 @@ Esta versão do projeto está preparada para deployment manual (ex: via consola 
   - `cloudant-storage.js`: A lógica principal do plugin de armazenamento para interagir com o IBM Cloudant.
   - `package.json`: Define as dependências do módulo de armazenamento (principalmente o cliente `nano` para Cloudant).
 - **`Dockerfile`**: Instruções para construir a imagem Docker do Node-RED, incluindo a instalação do módulo de persistência customizado e a cópia do ficheiro de configuração.
-- **`settings.js`**: Ficheiro de configuração do Node-RED, modificado para utilizar o `node-red-contrib-cloudant-storage` como `storageModule` e para configurar a autenticação do editor (`adminAuth`) dinamicamente.
+- **`settings.js`**: Ficheiro de configuração do Node-RED, modificado para utilizar o `node-red-cloudant-storage` como `storageModule` e para configurar a autenticação do editor (`adminAuth`) dinamicamente.
 - **`README.md`**: Este ficheiro, com a descrição do projeto e instruções.
+
+## Configuration
+
+Esta seção detalha as variáveis de ambiente necessárias para configurar a aplicação.
+
+### `CLOUDANT_CREDENTIALS` Environment Variable
+
+Esta variável de ambiente é **essencial** para o funcionamento da aplicação. Ela fornece as informações de conexão para a base de dados IBM Cloudant e, opcionalmente, configura os utilizadores para a autenticação no editor do Node-RED.
+
+A variável `CLOUDANT_CREDENTIALS` deve conter uma string JSON com a seguinte estrutura:
+
+```json
+{
+  "url": "SUA_URL_CLOUDANT_COM_AUTENTICACAO",
+  "app_db": "NOME_DA_BASE_DE_DADOS",
+  "nodered_users": [
+    {
+      "username": "admin_user",
+      "password": "SUA_SENHA_ADMIN_EM_HASH_BCRYPT",
+      "role": "admin"
+    },
+    {
+      "username": "read_only_user",
+      "password": "SUA_SENHA_USER_EM_HASH_BCRYPT",
+      "role": "user"
+    }
+  ]
+}
+```
+
+**Detalhes dos campos:**
+
+*   **`url` (obrigatório):** A URL completa de conexão ao seu IBM Cloudant, incluindo as credenciais de acesso (API key e password, ou username e password).
+    *   Formato esperado: `https://SUA_APIKEY_OU_USERNAME:SUA_PASSWORD@SEU_HOST.cloudantnosqldb.appdomain.cloud`
+*   **`app_db` (obrigatório):** O nome da base de dados no Cloudant que será utilizada para armazenar os dados do Node-RED (fluxos, credenciais, configurações). Se a base não existir, o módulo de persistência tentará criá-la.
+*   **`nodered_users` (opcional):** Um array de objetos, cada um representando um utilizador para autenticação no editor do Node-RED.
+    *   **`username` (obrigatório):** O nome de utilizador.
+    *   **`password` (obrigatório):** A senha do utilizador, **obrigatoriamente pré-codificada (hashed) utilizando bcrypt**.
+        *   **Importante:** Nunca coloque senhas em texto plano aqui. Utilize a ferramenta de linha de comando do Node-RED para gerar a hash: `node-red-admin hash-pw`. Copie a hash resultante para este campo.
+    *   **`role` (obrigatório):** Define o papel do utilizador. Este campo é utilizado internamente no `settings.js` para atribuir permissões no Node-RED.
+        *   `"admin"`: Concede permissões totais (acesso de leitura e escrita - `"*"`).
+        *   Qualquer outro valor (ex: `"user"`, `"editor"`): Concede permissões de leitura (`"read"`) por defeito. Esta lógica pode ser expandida no ficheiro `settings.js` se necessitar de maior granularidade de permissões.
+
+Se o array `nodered_users` não for fornecido, estiver vazio ou malformado, a autenticação do editor do Node-RED não será ativada (o editor ficará aberto, sem login), a menos que outra configuração de `adminAuth` seja definida manualmente no `settings.js`.
+
+Ao definir a variável de ambiente no seu serviço de container (ex: GCP Cloud Run, Docker), certifique-se de que a string JSON é fornecida corretamente (pode necessitar de "escapar" caracteres especiais dependendo da interface do serviço).
 
 ## Configuração e Implementação Manual
 
@@ -34,45 +80,17 @@ Para implementar esta aplicação manualmente (ex: no GCP Cloud Run):
     (Ex: `docker push gcr.io/seu-projeto-gcp/node-red-cloudant:latest`)
 
 4.  **Configure a Variável de Ambiente `CLOUDANT_CREDENTIALS`:**
-    Ao implementar o seu container (ex: no GCP Cloud Run), deverá configurar uma variável de ambiente chamada `CLOUDANT_CREDENTIALS`. Esta variável deve conter uma string JSON com:
-    *   As credenciais de acesso ao seu IBM Cloudant (`url`, `app_db`).
-    *   O vetor `nodered_users` para a autenticação do editor Node-RED.
-
-    Exemplo do conteúdo da string JSON para `CLOUDANT_CREDENTIALS`:
-    ```json
-    {
-      "url": "https://SUA_APIKEY_OU_USERNAME:SUA_PASSWORD@SEU_HOST.cloudantnosqldb.appdomain.cloud",
-      "app_db": "nomeDaSuaBaseNodeRed",
-      "nodered_users": [
-        {
-          "username": "admin",
-          "password": "$2a$08$tcrS3GpuSXO3w0OBCg3dZ.TRkH3.cUbT/j2g59A22fXnmM6tLaZZe",
-          "role": "admin"
-        },
-        {
-          "username": "editor",
-          "password": "$2a$08$abcdefghijklmnopqrstuv.wxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234",
-          "role": "user",
-          "permissions": "read"
-        }
-      ]
-    }
-    ```
-    **Importante sobre `nodered_users`**:
-    *   Cada objeto de utilizador deve conter `username`, `password` (obrigatoriamente uma hash bcrypt), e `role`.
-    *   O campo `role` é usado para determinar as `permissions`. Atualmente, `role: "admin"` concede permissões totais (`"*"`). Outros `role`s concedem permissões de leitura (`"read"`) por defeito. Pode expandir esta lógica no `settings.js` se necessitar de mais granularidade.
-    *   **Gerar Hashes Bcrypt:** Pode gerar hashes bcrypt para as suas passwords utilizando a ferramenta de linha de comando do Node-RED: `node-red-admin hash-pw`. Copie a hash resultante para o campo `password`.
-    *   Ao definir a variável de ambiente no seu serviço de container, certifique-se de que a string JSON é fornecida corretamente (pode necessitar de "escapar" caracteres especiais dependendo da interface do serviço).
+    Ao implementar o seu container, configure a variável de ambiente `CLOUDANT_CREDENTIALS` conforme detalhado na seção "Configuration" acima.
 
 5.  **Implemente o Container:**
-    Utilize a consola do seu fornecedor de cloud (ex: GCP Cloud Run) para criar um novo serviço, utilizando a imagem Docker que enviou para o registo. Configure a variável de ambiente `CLOUDANT_CREDENTIALS` conforme descrito acima. Certifique-se também de que a porta do container (1880 por defeito, ou a definida em `uiPort` no `settings.js` se alterada) está corretamente mapeada e que o serviço está configurado para escutar na porta esperada pelo seu ambiente (ex: Cloud Run espera `PORT=8080` por defeito, o `settings.js` já está configurado para usar `process.env.PORT` ou 1880).
+    Utilize a consola do seu fornecedor de cloud (ex: GCP Cloud Run) para criar um novo serviço, utilizando a imagem Docker que enviou para o registo. Configure a variável de ambiente `CLOUDANT_CREDENTIALS`. Certifique-se também de que a porta do container (1880 por defeito, ou a definida em `uiPort` no `settings.js` se alterada) está corretamente mapeada e que o serviço está configurado para escutar na porta esperada pelo seu ambiente (ex: Cloud Run espera `PORT=8080` por defeito, o `settings.js` já está configurado para usar `process.env.PORT` ou 1880).
 
 6.  **Aceda à sua Instância Node-RED:**
-    Após a implementação bem-sucedida, aceda ao URL fornecido pelo seu serviço de container. Será solicitado o login com um dos utilizadores configurados. Os fluxos, credenciais e configurações serão persistidos na base de dados Cloudant especificada.
+    Após a implementação bem-sucedida, aceda ao URL fornecido pelo seu serviço de container. Se `nodered_users` foi configurado, será solicitado o login. Os fluxos, credenciais e configurações serão persistidos na base de dados Cloudant especificada.
 
 ## Como Funciona o Módulo de Persistência
 
-O módulo `node-red-contrib-cloudant-storage` implementa a Storage API do Node-RED.
+O módulo `node-red-cloudant-storage` (localizado em `./node-red-cloudant-storage`) implementa a Storage API do Node-RED.
 
 -   **`init(settings)`**: Inicializa a ligação ao Cloudant utilizando as credenciais da variável de ambiente `CLOUDANT_CREDENTIALS`. Cria a base de dados especificada em `app_db` se esta não existir.
 -   **`getFlows()` / `saveFlows(flows)`**: Lê/grava os fluxos do Node-RED de/para um documento chamado `nodered_flows` na base de dados Cloudant.
@@ -88,5 +106,6 @@ O ficheiro `settings.js` na raiz do projeto instrui o Node-RED a utilizar o mód
 -   Mapeia o campo `role` para `permissions` (ex: `admin` -> `*`, outros -> `read`).
 -   As passwords **devem** ser hashes bcrypt.
 
-Se `nodered_users` não for fornecido ou estiver malformado, a autenticação do editor não será ativada (comportamento por defeito do Node-RED, a menos que outra configuração de `adminAuth` seja definida manualmente no `settings.js`).
+Se `nodered_users` não for fornecido ou estiver malformado, a autenticação do editor não será ativada.
 
+[end of README.md]

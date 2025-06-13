@@ -44,7 +44,7 @@ module.exports = {
     nodesDir: '/usr/src/node-red/node_modules',
 
     // Configure the Cloudant storage plugin
-    storageModule: require("node-red-contrib-cloudant-storage"),
+    storageModule: require("./node-red-cloudant-storage"),
 
     // Secure the editor and admin API
     adminAuth: adminAuthConfig,
