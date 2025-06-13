@@ -35,7 +35,34 @@ async function initCloudant() {
     }
 
     try {
-        cloudant = Nano(creds.url);
+        let connectionUrl = creds.url;
+        let parsedUrl;
+
+        try {
+            parsedUrl = new URL(connectionUrl);
+        } catch (e) {
+            const errMsg = "Invalid base creds.url format: " + e.message;
+            console.error(errMsg);
+            return Promise.reject(new Error(errMsg));
+        }
+
+        let urlModified = false;
+        if (creds.username && creds.password) {
+            parsedUrl.username = encodeURIComponent(creds.username);
+            parsedUrl.password = encodeURIComponent(creds.password);
+            urlModified = true;
+        }
+
+        if (creds.port) {
+            parsedUrl.port = creds.port;
+            urlModified = true;
+        }
+
+        if (urlModified) {
+            connectionUrl = parsedUrl.toString();
+        }
+
+        cloudant = Nano(connectionUrl);
         dbName = creds.app_db;
 
         const dbList = await cloudant.db.list();
